@@ -1,0 +1,181 @@
+<script>
+    let cart_id, cart_currency, cart_value, cart_items = [];
+
+
+    let vrfContentDomLoad = setInterval(() => {
+        if (document.querySelectorAll('.cart-container .cart-row').length > 0) {
+
+            if (/cart/.test(document.URL)) {
+                let cartContextObject;
+                let cartVrfAllScripts = document.querySelectorAll('script');
+                for (var i = 0; i < cartVrfAllScripts.length; i++) {
+                    let cartContextObjectScriptHTML = cartVrfAllScripts[i].innerHTML.match(/\{"cart":\{"id"/);
+                    if (cartContextObjectScriptHTML) {
+                        cartContextObject = JSON.parse(cartVrfAllScripts[i].innerHTML);
+                        if (typeof (cartContextObject.cart) != 'undefined') {
+                            cart_id = cartContextObject.cart.id;
+                            cart_currency = cartContextObject.cart.amountDue.currencyCode;
+                            cart_value = cartContextObject.cart.amountDue.decimalValue;
+
+
+
+                            let cartItemsArray = cartContextObject.cart.items;
+                            for (var j = 0; j < cartItemsArray.length; j++) {
+                                var rowNumber = j + 1;
+                                var cartItemId = cartItemsArray[j].productId;
+                                var selectItemFromDom = document.querySelector('.cart-container .cart-row:nth-child(' + rowNumber + ')');
+                                selectItemFromDom.setAttribute("data-item_id", cartItemId);
+                                selectItemFromDom.setAttribute("data-sku_id", cartItemsArray[j].sku);
+                                selectItemFromDom.setAttribute("data-unit_price", cartItemsArray[j].unitPrice.decimalValue);
+
+
+                                cart_items.push({ 'item_id': cartItemsArray[j].productId, 'sku_id': cartItemsArray[j].sku, 'item_name': cartItemsArray[j].productName, 'value': cartItemsArray[j].itemTotal.decimalValue, 'quantity': cartItemsArray[j].quantity, 'price': cartItemsArray[j].unitPrice.decimalValue });
+                            }
+                            break;
+                        }
+                    }
+                }
+                let eventDet = { 'cart_id': cart_id, 'currency': cart_currency, 'value': cart_value, 'items': cart_items };
+                gtmCall('view_cart', eventDet);
+            }
+            clearInterval(vrfContentDomLoad);
+        }
+    }, 1);
+
+    if (/cart/.test(document.URL)) {
+
+        document.body.addEventListener("click", function (e) {
+            if (e.target && e.target.classList.contains("cart-checkout-button") || e.target.parentElement.classList.contains("cart-checkout-button")) {
+                const allCartRows = Array.from(document.querySelectorAll('.cart-container .cart-row'));
+
+                let cartTotalValue = 0;
+                let cartAllItems = [];
+                allCartRows.forEach(rowCart => {
+
+
+                    var item_id = rowCart.getAttribute('data-item_id');
+                    var sku_id = rowCart.getAttribute('data-sku_id');
+                    var unit_price = rowCart.getAttribute('data-unit_price');
+
+                    var getItemQty = rowCart.querySelector('input.cart-row-qty-input').value;
+                    var getItemTitle = rowCart.querySelector('.cart-row-title').innerText;
+
+                    var getItemTotalValue = unit_price * parseFloat(getItemQty);
+                    cartTotalValue += getItemTotalValue;
+                    cartAllItems.push({ 'item_id': item_id, 'sku_id': sku_id, 'item_name': getItemTitle, 'value': getItemTotalValue, 'quantity': getItemQty, 'price': unit_price });
+                });
+
+
+                let eventDet = { 'cart_id': cart_id, 'currency': cart_currency, 'value': cartTotalValue, 'items': cartAllItems };
+                gtmCall('begin_checkout', eventDet);
+            }
+
+        });
+    }
+
+
+
+    function setCookie(cookie_name, cookie_value, cookie_time) {
+        const d = new Date();
+        d.setTime(d.getTime() + cookie_time);
+        let expires = "expires=" + d.toUTCString();
+        document.cookie = cookie_name + "=" + cookie_value + ";" + expires + ";path=/";
+    }
+    function getCookie(cookie_name) {
+        let name = cookie_name + "=";
+        let decodedCookie = decodeURIComponent(document.cookie);
+        let cookie_array = decodedCookie.split(';');
+        for (let i = 0; i < cookie_array.length; i++) {
+            let cookie_item = cookie_array[i];
+            while (cookie_item.charAt(0) == ' ') {
+                cookie_item = cookie_item.substring(1);
+            }
+            if (cookie_item.indexOf(name) == 0) {
+                return cookie_item.substring(name.length, cookie_item.length);
+            }
+        }
+        return "";
+    }
+
+
+    let currency, value, item_id, sku_id, item_name, item_category, quantity, item_value;
+    let storePageName = "p";
+
+    let storePageRegEx = new RegExp('\/' + storePageName + '\/.');
+    if (document.URL.match(storePageRegEx)) {
+        let ssContextObject;
+        let ssAllScripts = document.querySelectorAll('script');
+        for (var scriptIndex = 0; scriptIndex < ssAllScripts.length; scriptIndex++) {
+            let ssContextObjectScriptHTML = ssAllScripts[scriptIndex].innerHTML.match(/Static\.SQUARESPACE_CONTEXT = (.+?\});/);
+            if (ssContextObjectScriptHTML) {
+              
+              let initialContextData = /\{\"(.*)\}/gm.exec(ssContextObjectScriptHTML.input)[1];
+              let secondInitialContext = `{"${initialContextData}}`;
+              
+                ssContextObject = JSON.parse(secondInitialContext);
+
+                if (typeof (ssContextObject.product) != 'undefined') {
+                    let productVariants = ssContextObject.product.variants || [];
+                    for (var i = 0; i < productVariants.length; i++) {
+                        productVariants[i]['mainImage'] = {};
+                    }
+                    let categoryClassesElement, categoryClasses, categoryString = "";
+
+                    categoryClassesElement = document.querySelector('[data-content-field="main-content"]');
+
+                    if (categoryClassesElement) {
+                        categoryClassesElement = categoryClassesElement.querySelector('[class*=category-]');
+                    }
+                    else {
+                        categoryClassesElement = document.querySelector('body [class*=category-]');
+                    }
+                    categoryClasses = (categoryClassesElement) ? categoryClassesElement.className.match(/\bcategory-[\S]*/g) : [];
+
+                    for (var i = 0; i < categoryClasses.length && i < 5; i++) {
+                        categoryString = categoryString + (i != 0 ? "/" : "") + categoryClasses[i].replace(/category-/, '');
+                    }
+                    currency = ssContextObject.product.variants[0].price.currencyCode;
+                    item_value = ssContextObject.product.variants[0].price.decimalValue;
+                    item_name = ssContextObject.item.title;
+                    item_category = categoryString;
+                    sku_id = ssContextObject.product.variants[0].sku;
+                    item_id = ssContextObject.item.id;
+                    quantity = ssContextObject.product.variants.length;
+                    value = parseFloat(item_value) * quantity;
+
+
+
+
+                    let eventDet = { 'currency': currency, 'value': value, 'items': { item_id: item_id, sku_id: sku_id, item_name: item_name, item_category: item_category, quantity: quantity, price: item_value } };
+                    gtmCall('view_item', eventDet);
+                    setCookie('currency', currency, (30 * 24 * 60 * 60));
+                    break;
+                }
+            }
+        }
+    }
+
+
+    if (document.querySelector('.sqs-add-to-cart-button') !== null || document.querySelector('.sqs-add-to-cart-button') !== undefined) {
+    }
+
+    document.querySelector('.sqs-add-to-cart-button')?.addEventListener('click', (e) => {
+
+        let getQuantity = document.querySelector('.product-quantity-input input').value;
+        if (currency !== undefined || value !== undefined || item_id !== undefined || item_name !== undefined || item_category !== undefined || quantity !== undefined || item_value !== undefined) {
+            value = item_value * getQuantity;
+            quantity = getQuantity;
+            let eventDet = { 'currency': currency, 'value': value, 'items': { item_id: item_id, sku_id: sku_id, item_name: item_name, item_category: item_category, quantity: quantity, price: item_value } };
+            gtmCall('add_to_cart', eventDet);
+        }
+    })
+
+    function gtmCall(eventName, eventDet) {
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+            'event': eventName,
+            'ecommerce': eventDet
+        });
+    }
+
+</script>
